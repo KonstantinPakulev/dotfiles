@@ -60,6 +60,15 @@ return {
     "nvim-tree/nvim-tree.lua",
     enabled = false,
   },
+  {
+    "williamboman/mason.nvim",
+    opts = {
+      ensure_installed = {
+        "basedpyright",
+        "bash-language-server",
+      },
+    },
+  },
   -- test new blink
   -- { import = "nvchad.blink.lazyspec" },
 
