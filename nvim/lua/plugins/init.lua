@@ -6,12 +6,6 @@ return {
   },
 
   -- These are some examples, uncomment them if you want to see them work!
-  {
-    "neovim/nvim-lspconfig",
-    config = function()
-      require "configs.lspconfig"
-    end,
-  },
   ---@type LazySpec
   {
     "mikavilpas/yazi.nvim",
@@ -61,24 +55,41 @@ return {
     enabled = false,
   },
   {
-    "williamboman/mason.nvim",
+      "williamboman/mason-lspconfig.nvim",
+      lazy = false,
+      opts = {
+          ensure_installed = {
+            "basedpyright",
+            "bashls",
+            "lua_ls",
+        },
+      },
+      dependencies = {
+          { 
+            "williamboman/mason.nvim", 
+            opts = {}
+          },
+          "neovim/nvim-lspconfig",
+      },
+  },
+  {
+    "NeogitOrg/neogit",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "sindrets/diffview.nvim",
+    },
     opts = {
-      ensure_installed = {
-        "basedpyright",
-        "bash-language-server",
+      integrations = {
+        diffview = true,
+      },
+    },
+    config = true,
+    keys = {
+      {
+        "<leader>gg",
+        "<cmd>Neogit<cr>",
+        desc = "Open Neogit",
       },
     },
   },
-  -- test new blink
-  -- { import = "nvchad.blink.lazyspec" },
-
-  -- {
-  -- 	"nvim-treesitter/nvim-treesitter",
-  -- 	opts = {
-  -- 		ensure_installed = {
-  -- 			"vim", "lua", "vimdoc",
-  --      "html", "css"
-  -- 		},
-  -- 	},
-  -- },
-}
+ }

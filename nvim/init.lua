@@ -3,6 +3,7 @@ vim.g.mapleader = " "
 
 vim.o.exrc = true
 vim.o.secure = true
+vim.opt.relativenumber = true
 
 -- bootstrap lazy and all plugins
 local lazypath = vim.fn.stdpath "data" .. "/lazy/lazy.nvim"
@@ -38,3 +39,4 @@ require "autocmds"
 vim.schedule(function()
   require "mappings"
 end)
+
