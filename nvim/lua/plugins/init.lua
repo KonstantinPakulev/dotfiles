@@ -97,5 +97,17 @@ return {
     lazy = false,     -- we don't want to lazy load VimTeX
     init = function()
     end
-  }
+  },
+  {
+    "MeanderingProgrammer/render-markdown.nvim",
+    ft = { "markdown" },
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+      "nvim-tree/nvim-web-devicons",
+    },
+    opts = {},
+    keys = {
+      { "<leader>rm", "<cmd>RenderMarkdown toggle<cr>", desc = "Toggle Markdown Rendering", ft = "markdown" },
+    },
+  },
 }
