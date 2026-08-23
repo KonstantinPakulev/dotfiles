@@ -1,1 +1,14 @@
-nvim/lazy-lock.json
+config/nvim/lazy-lock.json
+
+# Secrets — must never be committed
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*.pem
+*.key
+auth.json
+hosts.yml
+clearml.conf
+.env
+.git-credentials
+*.backup.*
