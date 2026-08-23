@@ -19,8 +19,11 @@ unset _d
 
 # nvim resolves TERM=tmux-256color via terminfo; macOS ships no such entry,
 # which degrades pane capabilities inside tmux. Seed a user-local copy from
-# Homebrew's db. Idempotent.
-if [ "$(uname -s)" = Darwin ] && [ ! -e "$HOME/.terminfo/tmux-256color" ]; then
+# Homebrew's db. Idempotent. tic stores entries under hashed dirs
+# (~/.terminfo/74/ for "t"), so check both layouts.
+if [ "$(uname -s)" = Darwin ] \
+    && [ ! -e "$HOME/.terminfo/tmux-256color" ] \
+    && [ ! -e "$HOME/.terminfo/74/tmux-256color" ]; then
     for _d in /usr/local/opt/ncurses /opt/homebrew/opt/ncurses; do
         [ -x "$_d/bin/infocmp" ] && [ -x "$_d/bin/tic" ] || continue
         _src="$(mktemp)"
