@@ -35,7 +35,8 @@ cd ~/dotfiles
 
 What it does, in order:
 
-1. **Tools** — installs gh, tmux (≥ 3.3 checked), nvim, jq, yazi (+ `ya`),
+1. **Tools** — installs gh, tmux (≥ 3.3 checked; pinned to 3.5a on macOS,
+   see FAQ), nvim, jq, yazi (+ `ya`),
    lazydocker (skipped when Docker is absent), JetBrainsMono Nerd Font,
    opencode via brew (macOS) or apt/official tarballs (Linux). See
    `install/tools.sh`.
@@ -121,6 +122,16 @@ selecting it in the app's settings.
 That option needs tmux ≥ 3.3. Ubuntu 22.04 ships 3.2a: either enable
 backports/a PPA or build from source (needs `libevent-dev ncurses-dev
 bison pkg-config`). macOS Homebrew is always current.
+
+**Why is tmux pinned to 3.5a on macOS?**
+Newer releases emit pane diffs in a way that renders poorly over SSH to
+Termius on iPad: random jitter whenever a TUI repaints and gray flash
+rectangles at nvim scroll boundaries (verified against 3.7c; 3.5a is
+clean with identical config and client). The installer therefore builds
+3.5a from the official tarball into `~/.local/opt/tmux-3.5a` and shadows
+brew's binary via `~/.local/bin/tmux`, which the managed bashrc places
+first on PATH. To experiment with a newer version anyway, remove that
+shadow symlink.
 
 **Uninstall?**
 There is no uninstall script — removal is intentionally manual so nothing

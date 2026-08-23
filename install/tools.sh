@@ -41,6 +41,31 @@ gh_install_official_apt_repo() {
     $SUDO apt-get install -y gh
 }
 
+# Build the pinned tmux release into ~/.local/opt and shadow whatever
+# brew/system provides. macOS only.
+build_tmux_pinned_macos() {
+    log "Building tmux 3.5a from official tarball..."
+    command -v pkg-config >/dev/null 2>&1 \
+        || die "pkg-config missing (brew install pkgconf)"
+    pkg-config libevent >/dev/null 2>&1 \
+        || die "libevent missing (brew install libevent)"
+    local dir tmp
+    dir="$HOME/.local/opt/tmux-3.5a"
+    tmp="$(mktemp -d)"
+    curl "${CURL_ARGS[@]+"${CURL_ARGS[@]}"}" -fsSL --output "$tmp/t.tar.gz" \
+        https://github.com/tmux/tmux/releases/download/3.5a/tmux-3.5a.tar.gz \
+        || die "failed to download tmux 3.5a"
+    mkdir -p "$dir"
+    tar -C "$tmp" -xzf "$tmp/t.tar.gz"
+    # shellcheck disable=SC2016  # path expansion must happen at build time
+    ( cd "$tmp/tmux-3.5a" \
+        && ./configure --prefix="$dir" --enable-utf8proc >/dev/null 2>&1 \
+        && make -j >/dev/null 2>&1 \
+        && make install >/dev/null 2>&1 ) \
+        || die "tmux 3.5a build failed"
+    rm -rf "$tmp"
+}
+
 install_tmux() {
     if command -v tmux >/dev/null 2>&1 || pkg_installed tmux; then
         log "tmux already installed"
@@ -61,6 +86,19 @@ install_tmux() {
         warn "tmux $ver found; tmux.conf needs >= 3.3. Upgrade hints in README.md."
     else
         log "tmux $ver OK"
+    fi
+    # macOS: pin 3.5a. Newer releases (3.7c verified) cause rendering
+    # artifacts over SSH to Termius/iPad — random jitter on any pane repaint
+    # and gray flash rectangles at scroll boundaries. Details: README.md.
+    if [ "$OS" = Darwin ] && [ "$ver" != "3.5a" ]; then
+        if [ -x "$HOME/.local/opt/tmux-3.5a/bin/tmux" ]; then
+            log "pinned tmux 3.5a already present"
+        else
+            build_tmux_pinned_macos
+        fi
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$HOME/.local/opt/tmux-3.5a/bin/tmux" "$HOME/.local/bin/tmux"
+        log "tmux pinned to $("$HOME/.local/opt/tmux-3.5a/bin/tmux" -V) via ~/.local/bin (shadows brew)"
     fi
 }
 
