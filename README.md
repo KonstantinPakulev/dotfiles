@@ -59,14 +59,23 @@ What it does, in order:
 
 ```
 dotfiles-private/
-└── opencode/
-    └── provider.jsonc    # {"provider": { "<name>": {...} }}
+├── opencode/
+│   └── provider.jsonc    # {"provider": { "<name>": {...} }}
+└── ssh/
+    └── config.d/
+        └── fleet.conf    # lab hosts: IPs, usernames, jump hosts
 ```
 
 When the installer finds that repo (it clones/pulls it to `~/.dotfiles-private`),
 the two configs are deep-merged with jq into a generated real file at
 `~/.config/opencode/opencode.jsonc` — marked "generated", do not edit.
 Without the private repo, the public config is symlinked as-is.
+
+SSH fragments work differently — no merging, pure registration: the
+installer symlinks `ssh/config.d/*.conf` into `~/.ssh/config.d/` and
+guarantees a single `Include ~/.ssh/config.d/*` line at the top of
+`~/.ssh/config`. Your hand-tuned main config is never rewritten; network
+topology and usernames stay out of the public repo.
 
 The generated output lives outside any repository, so merged content can
 never be accidentally committed.

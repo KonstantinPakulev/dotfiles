@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# install/link.sh — link configs into $HOME (interactive conflict handling)
-# and set up tpm. Safe to re-run after pulling new mappings.
+# install/link.sh — link configs into $HOME (interactive conflict handling),
+# set up tpm and wire private-layer ssh fragments. Safe to re-run.
 #   ./install/link.sh [--proxy=<url>] [--dry-run] [--yes]
 
 set -euo pipefail
@@ -69,6 +69,42 @@ setup_tpm() {
     fi
 }
 
+setup_ssh() {
+    local frag_src="$HOME/.dotfiles-private/ssh/config.d"
+    local frag_dst="$HOME/.ssh/config.d"
+    mkdir -p "$frag_dst"
+
+    # Fragments live in the private layer (network topology, usernames);
+    # this repo only guarantees the mechanism.
+    if [ -d "$frag_src" ] && [ -n "$(ls -A "$frag_src" 2>/dev/null)" ]; then
+        local f
+        for f in "$frag_src"/*.conf; do
+            run ln -snf "$f" "$frag_dst/$(basename "$f")"
+        done
+    else
+        log "no private ssh fragments found (optional)"
+    fi
+
+    # ~/.ssh/config is user-owned territory: never rewrite it beyond
+    # guaranteeing a single Include line that picks up the fragments.
+    local cfg="$HOME/.ssh/config"
+    if [ ! -e "$cfg" ]; then
+        log "creating $cfg with Include line"
+        run touch "$cfg"
+    fi
+    if ! grep -qs '^Include.*/config\.d' "$cfg"; then
+        log "prepending Include line to $cfg"
+        if $DRY_RUN; then
+            echo "[dry-run] prepend 'Include ~/.ssh/config.d/*' to $cfg"
+        else
+            local tmp
+            tmp="$(mktemp)"
+            { printf 'Include ~/.ssh/config.d/*\n\n'; cat "$cfg"; } > "$tmp"
+            mv "$tmp" "$cfg"
+        fi
+    fi
+}
+
 link_main() {
     log "Linking configs..."
     for mapping in "${MAPPINGS[@]}"; do
@@ -77,6 +113,7 @@ link_main() {
         link_mapping "$src" "$dst" || SKIPPED=$((SKIPPED + 1))
     done
     setup_tpm
+    setup_ssh
     log "Linking done: linked=$LINKED skipped=$SKIPPED"
 }
 
