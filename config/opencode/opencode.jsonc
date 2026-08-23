@@ -6,7 +6,10 @@
     "external_directory": {
       "*": "ask",
       "/tmp/**": "allow",
-      "/private/tmp/**": "allow"
+      "/private/tmp/**": "allow",
+      "~/Documents/**": "allow",
+      "~/Desktop/**": "allow",
+      "~/Downloads/**": "allow"
     },
     "bash": {
       "*": "ask",
@@ -28,7 +31,30 @@
       "git diff": "allow",
       "git diff *": "allow",
       "git log": "allow",
-      "git log *": "allow"
+      "git log *": "allow",
+      "find *": "allow",
+      "pwd": "allow",
+      "whoami": "allow",
+      "date": "allow",
+      "which *": "allow",
+      "command *": "allow",
+      "type *": "allow",
+      "file *": "allow",
+      "stat *": "allow",
+      "du *": "allow",
+      "df *": "allow",
+      "tree *": "allow",
+      "diff *": "allow",
+      "cmp *": "allow",
+      "readlink *": "allow",
+      "realpath *": "allow",
+      "basename *": "allow",
+      "dirname *": "allow",
+      "shasum *": "allow",
+      "sha256sum *": "allow",
+      "md5 *": "allow",
+      "ps *": "allow",
+      "uname *": "allow"
     }
   },
   "compaction": {
