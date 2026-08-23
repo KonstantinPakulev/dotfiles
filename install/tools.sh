@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install/tools.sh — install gh, tmux, nvim, jq, opencode binaries.
+# install/tools.sh — install gh, tmux, nvim, jq, yazi, lazydocker (needs docker), fonts, opencode.
 # Standalone: ./install/tools.sh [--proxy=<url>] [--dry-run]
 
 set -euo pipefail
@@ -130,6 +130,41 @@ install_yazi() {
     rm -rf "$tmp"
 }
 
+install_lazydocker() {
+    if ! command -v docker >/dev/null 2>&1; then
+        log "no docker found — skipping lazydocker"
+        return
+    fi
+    command -v lazydocker >/dev/null 2>&1 && { log "lazydocker already installed"; return; }
+    # Release assets embed the version, so resolve the latest tag first
+    # (jq is installed earlier in tools_main).
+    local ver asset url tmp optdir
+    ver="$(curl "${CURL_ARGS[@]+"${CURL_ARGS[@]}"}" -fsSL \
+        https://api.github.com/repos/jesseduffield/lazydocker/releases/latest \
+        | jq -r .tag_name | sed 's/^v//')" || die "failed to resolve lazydocker version"
+    case "$OS/$ARCH" in
+        Darwin/x86_64) asset="lazydocker_${ver}_Darwin_x86_64.tar.gz" ;;
+        Darwin/arm64)  asset="lazydocker_${ver}_Darwin_arm64.tar.gz" ;;
+        Linux/x86_64)  asset="lazydocker_${ver}_Linux_x86_64.tar.gz" ;;
+        Linux/arm64)   asset="lazydocker_${ver}_Linux_arm64.tar.gz" ;;
+        *) die "unsupported platform for lazydocker: $OS/$ARCH" ;;
+    esac
+    log "Installing lazydocker $ver from official tarball..."
+    if $DRY_RUN; then
+        echo "[dry-run] would download jesseduffield/lazydocker asset $asset -> ~/.local/opt/lazydocker and symlink into ~/.local/bin"
+        return
+    fi
+    url="https://github.com/jesseduffield/lazydocker/releases/download/v${ver}/${asset}"
+    tmp="$(mktemp -d)"
+    optdir="$HOME/.local/opt/lazydocker"
+    curl "${CURL_ARGS[@]+"${CURL_ARGS[@]}"}" -fsSL --output "$tmp/ld.tar.gz" "$url" \
+        || die "failed to download $url"
+    rm -rf "$optdir" && mkdir -p "$optdir"
+    tar -xzf "$tmp/ld.tar.gz" -C "$optdir" lazydocker
+    ln -sf "$optdir/lazydocker" "$HOME/.local/bin/lazydocker"
+    rm -rf "$tmp"
+}
+
 install_fonts() {
     # JetBrainsMono Nerd Font — icons for nvim/tmux/yazi
     if [ "$PKG" = brew ]; then
@@ -185,6 +220,7 @@ tools_main() {
     install_nvim
     install_jq
     install_yazi
+    install_lazydocker
     install_fonts
     install_opencode_bin
 }

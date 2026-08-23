@@ -36,8 +36,9 @@ cd ~/dotfiles
 What it does, in order:
 
 1. **Tools** — installs gh, tmux (≥ 3.3 checked), nvim, jq, yazi (+ `ya`),
-   JetBrainsMono Nerd Font, opencode via brew (macOS) or apt/official
-   tarballs (Linux). See `install/tools.sh`.
+   lazydocker (skipped when Docker is absent), JetBrainsMono Nerd Font,
+   opencode via brew (macOS) or apt/official tarballs (Linux). See
+   `install/tools.sh`.
 2. **GitHub auth** — if unauthenticated, prints a single-shot
    `gh auth login` command to run, then re-run the installer.
 3. **SSH** — generates an ed25519 key if missing, pins GitHub's published
