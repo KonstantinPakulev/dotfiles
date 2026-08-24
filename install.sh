@@ -35,11 +35,14 @@ $(printf '\033[1;33mAction required:\033[0m this machine is not authenticated wi
 Run the following single-shot login, then re-run ./install.sh:
 
     gh auth logout --hostname github.com 2>/dev/null; \\
-      gh auth login --hostname github.com --git-protocol ssh --web \\
+      BROWSER=true gh auth login --hostname github.com --git-protocol ssh --web \\
          --insecure-storage --scopes "repo,gist,read:org,admin:public_key"
 
 (--insecure-storage stores the token in ~/.config/gh/hosts.yml with 0600 perms
- instead of the macOS Keychain, whose ACLs break across terminal apps and tmux.)
+ instead of the macOS Keychain, whose ACLs break across terminal apps and tmux.
+ BROWSER=true suppresses the useless local-browser launch on headless hosts:
+ open https://github.com/login/device on ANY device and enter the one-time
+ code; this session finishes polling on its own.)
 EOF
     exit 1
 fi
