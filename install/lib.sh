@@ -14,6 +14,10 @@ DOTFILES_ROOT="$(dirname "$INSTALL_DIR")"
 
 DRY_RUN=false
 YES=false
+case "${DOTFILES_NO_SUDO:-}" in
+    1|true|TRUE|yes|YES) DOTFILES_NO_SUDO=true ;;
+    *)                   DOTFILES_NO_SUDO=false ;;
+esac
 PROXY=""
 # shellcheck disable=SC2034  # consumed by modules after source
 CURL_ARGS=()
@@ -75,6 +79,17 @@ pkg_installed() {
     else
         dpkg -s "$1" >/dev/null 2>&1
     fi
+}
+
+# True when apt can actually be driven: running as root, sudo usable without a
+# password, or an interactive TTY where it may prompt. DOTFILES_NO_SUDO=1
+# forces the user-local fallback everywhere (rehearsals, restricted CI).
+have_apt_access() {
+    [ "$DOTFILES_NO_SUDO" = true ] && return 1
+    [ "$(id -u)" -eq 0 ] && return 0
+    command -v sudo >/dev/null 2>&1 || return 1
+    if sudo -n true 2>/dev/null; then return 0; fi
+    [ -t 0 ]
 }
 
 run() {

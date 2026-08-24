@@ -19,7 +19,8 @@ Everything under `config/<app>/` mirrors the XDG layout: it deploys to
 
 ## Prerequisites
 
-- **git** — everything else the installer can set up itself.
+- **git** — everything else the installer can set up itself (sudo-less
+  machines degrade gracefully, see FAQ).
 - macOS only: Xcode CLT (`xcode-select --install`) and
   [Homebrew](https://brew.sh).
 
@@ -141,6 +142,17 @@ clean with identical config and client). The installer therefore builds
 brew's binary via `~/.local/bin/tmux`, which the managed bashrc places
 first on PATH. To experiment with a newer version anyway, remove that
 shadow symlink.
+
+**Machines without sudo?**
+Every apt touchpoint probes privilege first: running as root, or sudo usable
+without a password, or an interactive TTY (where sudo may prompt). With none
+of those, the installer degrades instead of aborting: **gh** and **jq** fall
+back to official release binaries in `~/.local/bin` (nvim/yazi/lazydocker
+already install that way); **tmux**, **yazi** (unzip missing) and fonts
+(fontconfig missing) are skipped with a warning — hints for building tmux
+from source are above. Set `DOTFILES_NO_SUDO=1` to force the user-local path
+even where sudo exists (rehearsals, restricted CI). Everything after the
+tools stage (GitHub auth, SSH keys, linking, private layer) never needs root.
 
 **Uninstall?**
 There is no uninstall script — removal is intentionally manual so nothing

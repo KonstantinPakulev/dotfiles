@@ -7,6 +7,36 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
+# No usable sudo: same release-tarball pattern nvim/yazi/lazydocker follow.
+install_gh_user_local() {
+    local ver asset url tmp optdir
+    # jq installs later in tools_main, so resolve the tag without it
+    ver="$(curl "${CURL_ARGS[@]+${CURL_ARGS[@]}}" -fsSL \
+        https://api.github.com/repos/cli/cli/releases/latest \
+        | sed -n 's/.*"tag_name": *"\(v[^"]*\)".*/\1/p' | head -1)" || true
+    [ -n "$ver" ] || die "failed to resolve latest gh release"
+    case "$OS/$ARCH" in
+        Linux/x86_64) asset="gh_${ver#v}_linux_amd64.tar.gz" ;;
+        Linux/arm64)  asset="gh_${ver#v}_linux_arm64.tar.gz" ;;
+        *) die "unsupported platform for gh tarball: $OS/$ARCH" ;;
+    esac
+    log "No apt access — installing gh ${ver#v} from official tarball (user-local)..."
+    if $DRY_RUN; then
+        echo "[dry-run] would download cli/cli asset $asset -> ~/.local/opt/gh and symlink bin/gh into ~/.local/bin"
+        return
+    fi
+    url="https://github.com/cli/cli/releases/download/${ver}/${asset}"
+    tmp="$(mktemp -d)"
+    optdir="$HOME/.local/opt/gh"
+    curl "${CURL_ARGS[@]+"${CURL_ARGS[@]}"}" -fsSL --output "$tmp/gh.tar.gz" "$url" \
+        || die "failed to download $url"
+    mkdir -p "$optdir" "$HOME/.local/bin"
+    rm -rf "${optdir:?}"/*
+    tar -C "$optdir" -xzf "$tmp/gh.tar.gz"
+    ln -sf "$optdir"/gh_*/bin/gh "$HOME/.local/bin/gh"
+    rm -rf "$tmp"
+}
+
 install_gh() {
     command -v gh >/dev/null 2>&1 && { log "gh already installed: $(gh --version | head -1)"; return; }
     if [ "$PKG" = brew ]; then
@@ -15,7 +45,7 @@ install_gh() {
         pkg_installed gh && return
         log "Installing gh (brew)..."
         run brew install gh
-    else
+    elif have_apt_access; then
         if $DRY_RUN; then
             echo "[dry-run] would install gh via official apt repo (fallback: plain apt)"
             return
@@ -27,6 +57,8 @@ install_gh() {
             warn "official repo failed; falling back to distro package (may be old)"
             run $SUDO apt-get install -y gh
         fi
+    else
+        install_gh_user_local
     fi
 }
 
@@ -69,15 +101,17 @@ build_tmux_pinned_macos() {
 install_tmux() {
     if command -v tmux >/dev/null 2>&1 || pkg_installed tmux; then
         log "tmux already installed"
+    elif [ "$PKG" = brew ]; then
+        log "Installing tmux (brew)..."
+        run brew install tmux
+    elif have_apt_access; then
+        log "Installing tmux (apt)..."
+        # ncurses-term provides the tmux-256color terminfo entry that
+        # tmux.conf's default-terminal relies on (absent from ncurses-base)
+        run $SUDO apt-get install -y tmux ncurses-term
     else
-        log "Installing tmux ($PKG)..."
-        if [ "$PKG" = brew ]; then
-            run brew install tmux
-        else
-            # ncurses-term provides the tmux-256color terminfo entry that
-            # tmux.conf's default-terminal relies on (absent from ncurses-base)
-            run $SUDO apt-get install -y tmux ncurses-term
-        fi
+        warn "no sudo and no tmux — skipping; build-from-source hints live in README.md FAQ"
+        return 0
     fi
     # tmux.conf requires >= 3.3 (allow-passthrough)
     local ver
@@ -131,14 +165,43 @@ install_nvim() {
 
 install_jq() {
     command -v jq >/dev/null 2>&1 && { log "jq already installed"; return; }
-    log "Installing jq ($PKG)..."
-    if [ "$PKG" = brew ]; then run brew install jq; else run $SUDO apt-get install -y jq; fi
+    if [ "$PKG" = brew ]; then
+        run brew install jq
+    elif have_apt_access; then
+        run $SUDO apt-get install -y jq
+    else
+        install_jq_user_local
+    fi
+}
+
+install_jq_user_local() {
+    local asset url tmp bin
+    case "$ARCH" in
+        x86_64) asset="jq-linux-amd64" ;;
+        arm64)  asset="jq-linux-arm64" ;;
+        *) die "unsupported platform for static jq: $OS/$ARCH" ;;
+    esac
+    log "No apt access — installing static jq to ~/.local/bin..."
+    if $DRY_RUN; then
+        echo "[dry-run] would download jqlang/jq asset $asset -> ~/.local/bin/jq"
+        return
+    fi
+    url="https://github.com/jqlang/jq/releases/latest/download/${asset}"
+    bin="$HOME/.local/bin/jq"
+    mkdir -p "$HOME/.local/bin"
+    tmp="$(mktemp)"
+    curl "${CURL_ARGS[@]+"${CURL_ARGS[@]}"}" -fsSL --output "$tmp" "$url" \
+        || die "failed to download $url"
+    mv "$tmp" "$bin" && chmod +x "$bin"
 }
 
 install_yazi() {
     command -v yazi >/dev/null 2>&1 && { log "yazi already installed: $(yazi --version 2>/dev/null | head -1)"; return; }
     if [ "$PKG" = apt ]; then
-        pkg_installed unzip || run $SUDO apt-get install -y unzip
+        if ! pkg_installed unzip; then
+            have_apt_access || { warn "no sudo and unzip missing — skipping yazi"; return 0; }
+            run $SUDO apt-get install -y unzip
+        fi
     fi
     # Official release tarballs: brew has no bottles for older macOS and no
     # apt package exists — this pattern is instant and identical everywhere.
@@ -221,7 +284,10 @@ install_fonts() {
             log "JetBrains Mono Nerd Font already present"
             return
         fi
-        pkg_installed fontconfig || run $SUDO apt-get install -y fontconfig
+        if ! pkg_installed fontconfig; then
+            have_apt_access || { warn "no sudo and fontconfig missing — skipping font install"; return 0; }
+            run $SUDO apt-get install -y fontconfig
+        fi
         log "Installing JetBrains Mono Nerd Font..."
         if $DRY_RUN; then
             echo "[dry-run] download JetBrainsMono.zip -> $fdir + fc-cache"
