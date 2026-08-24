@@ -46,10 +46,14 @@ What it does, in order:
 3. **SSH** — generates an ed25519 key if missing, pins GitHub's published
    host keys (no trust-on-first-use), adds the `github.com` block to
    `~/.ssh/config`, registers the key via gh on first use.
-4. **Links** — symlinks the table above into `$HOME`. Existing files are
+4. **Private layer** — clones/pulls
+   [`dotfiles-private`](https://github.com/KonstantinPakulev/dotfiles-private)
+   into `~/.dotfiles-private`; skipped with a warning when unavailable.
+5. **Links** — symlinks the table above into `$HOME`, clones tpm, and wires
+   the private ssh fragments. Existing files are
    never silently overwritten: you get `[b]ackup/[d]iff/[k]eep/[A]ll/[q]uit`
    per file. Backups land next to the original as `<name>.backup.<timestamp>`.
-5. **opencode config** — see below.
+6. **opencode config** — see below.
 
 ## The private layer
 
@@ -84,7 +88,9 @@ never be accidentally committed.
 ## Updating
 
 ```bash
-git -C ~/dotfiles pull && git -C ~/.dotfiles-private pull   # if present
+git -C ~/dotfiles pull
+./install.sh                    # idempotent; re-syncs the private layer itself
+# or granular:
 ./install/opencode-config.sh    # regenerate merged config
 ./install/link.sh               # pick up newly added mappings
 ./install/tools.sh              # only when you want tool upgrades

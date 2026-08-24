@@ -120,14 +120,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Stage 4: link configs + tpm
+# Stage 4: private layer (ssh fragments + provider config live here)
+# ---------------------------------------------------------------------------
+# Needs Stage 3 done: the clone goes over SSH. Failure is non-fatal —
+# machines without access to the private repo continue public-only.
+if ! sync_private_repo; then
+    warn "continuing without private layer"
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 5: link configs + tpm + ssh fragments
 # ---------------------------------------------------------------------------
 # shellcheck source=install/link.sh
 source "$INSTALL_DIR/link.sh"
 link_main
 
 # ---------------------------------------------------------------------------
-# Stage 5: deploy opencode config (merge private layer when present)
+# Stage 6: deploy opencode config (merge private layer when present)
 # ---------------------------------------------------------------------------
 # shellcheck source=install/opencode-config.sh
 source "$INSTALL_DIR/opencode-config.sh"

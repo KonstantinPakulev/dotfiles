@@ -27,6 +27,9 @@ PKG=""
 # shellcheck disable=SC2034  # consumed by modules after source
 SUDO=""
 
+PRIVATE_DIR="$HOME/.dotfiles-private"
+_PRIVATE_LAYER_SYNCED=false
+
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -90,6 +93,27 @@ have_apt_access() {
     command -v sudo >/dev/null 2>&1 || return 1
     if sudo -n true 2>/dev/null; then return 0; fi
     [ -t 0 ]
+}
+
+# Clone or fast-forward the private companion repo into $PRIVATE_DIR.
+# Non-fatal by design: callers treat failure as "public config only".
+# The orchestrator syncs once per run; later callers short-circuit.
+sync_private_repo() {
+    $_PRIVATE_LAYER_SYNCED && { log "private layer already synced this run"; return 0; }
+    if [ ! -d "$PRIVATE_DIR/.git" ]; then
+        gh repo view KonstantinPakulev/dotfiles-private >/dev/null 2>&1 || {
+            warn "no private layer: KonstantinPakulev/dotfiles-private not found (public config only)"
+            return 1
+        }
+        log "Cloning private layer..."
+        run git clone git@github.com:KonstantinPakulev/dotfiles-private "$PRIVATE_DIR" || return 1
+    else
+        log "Updating private layer..."
+        git -C "$PRIVATE_DIR" pull --ff-only \
+            || warn "private layer pull failed (diverged?); using last synced state"
+    fi
+    _PRIVATE_LAYER_SYNCED=true
+    return 0
 }
 
 run() {
