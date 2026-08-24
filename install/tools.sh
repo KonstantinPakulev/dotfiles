@@ -226,8 +226,9 @@ install_yazi() {
     rm -rf "$optdir" && mkdir -p "$optdir"
     unzip -q -o "$tmp/yazi.zip" -d "$tmp/x"
     cp -R "$tmp/x/"yazi-*/ "$optdir/"
-    ln -sf "$optdir/yazi" "$HOME/.local/bin/yazi"
-    ln -sf "$optdir/ya" "$HOME/.local/bin/ya"
+    for f in yazi ya; do
+        ln -sf "$optdir"/yazi-*/"$f" "$HOME/.local/bin/$f"
+    done
     rm -rf "$tmp"
 }
 

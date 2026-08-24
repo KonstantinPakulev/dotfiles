@@ -13,6 +13,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/install/lib.sh"
 parse_common_args "$@"
 detect_platform
 
+# Installer-internal PATH: tool probes must not depend on which rc files ran.
+export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
+
 command -v git >/dev/null 2>&1 \
     || die "git is required but not installed. See README.md prerequisites."
 
