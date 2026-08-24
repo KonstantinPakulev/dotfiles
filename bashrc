@@ -1,10 +1,17 @@
 # shellcheck shell=bash
 # Managed by dotfiles (github.com/KonstantinPakulev/dotfiles)
 
-export PATH="$HOME/.local/bin:$PATH"
-
-# opencode
-export PATH="$HOME/.opencode/bin:$PATH"
+# PATH: prepend only when not already first. Keeps our tools (pinned tmux,
+# tarball nvim, yazi) shadowing system copies while staying idempotent when
+# nested shells re-source this file over an inherited environment.
+case "$PATH" in
+    "$HOME/.local/bin":*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+case "$PATH" in
+    "$HOME/.opencode/bin":*) ;;
+    *) export PATH="$HOME/.opencode/bin:$PATH" ;;
+esac
 
 # tmux derives a client's UTF-8 support from the login shell's locale.
 # Stock macOS sshd sessions start with none (Darwin has no locale
@@ -36,6 +43,51 @@ if [ "$(uname -s)" = Darwin ] \
     unset _d _src
 fi
 
+# Universal interactive baseline: history, completion, prompt, core aliases.
+# Fully skipped for non-interactive shells — zero stdout either way, so
+# piping this file's side effects through ssh/scp/rsync stays safe.
+case $- in
+*i*)
+    HISTCONTROL=ignoreboth
+    HISTSIZE=1000
+    HISTFILESIZE=2000
+    shopt -s histappend checkwinsize
+
+    if ! shopt -oq posix; then
+        # shellcheck disable=SC1091  # distro paths, guarded above
+        [ -f /usr/share/bash-completion/bash_completion ] \
+            && . /usr/share/bash-completion/bash_completion
+        # shellcheck disable=SC1091
+        [ -f /etc/bash_completion ] && . /etc/bash_completion
+    fi
+
+    PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+    case "$TERM" in xterm*|rxvt*)
+        PS1="\[\e]0;\u@\h: \w\a\]$PS1"
+        ;;
+    esac
+
+    if command -v dircolors >/dev/null 2>&1; then
+        eval "$(dircolors -b)" 2>/dev/null || true
+        alias ls='ls --color=auto'
+        alias grep='grep --color=auto'
+    fi
+    alias ll='ls -alF'
+    alias la='ls -A'
+    alias l='ls -CF'
+
+    # Personal aliases and extensions (file absence is normal).
+    if [ -f "$HOME/.bash_aliases" ]; then
+        # shellcheck disable=SC1091
+        . "$HOME/.bash_aliases"
+    fi
+    ;;
+esac
+
 # Machine-local overrides (gitignored, never committed); absence is normal.
-# shellcheck disable=SC1091
-[ -f "$HOME/.bashrc.local" ] && . "$HOME/.bashrc.local"
+# Deliberately OUTSIDE the interactive guard: locals may carry env needed by
+# non-login shells too (e.g. apio's /snap/bin insurance).
+if [ -f "$HOME/.bashrc.local" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/.bashrc.local"
+fi

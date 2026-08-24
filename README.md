@@ -98,7 +98,8 @@ git -C ~/dotfiles pull
 
 ## Machine-specific settings
 
-Shared configs stay pristine; per-machine tweaks go into gitignored locals:
+Shared configs ship a universal interactive baseline (history, completion,
+colored prompt, core aliases); per-machine tweaks go into gitignored locals:
 
 - `~/.bashrc.local` — sourced at the end of `~/.bashrc`
 - `~/.bash_profile.local` — sourced at the end of `~/.bash_profile`
