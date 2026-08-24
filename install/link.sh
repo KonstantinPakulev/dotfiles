@@ -63,8 +63,15 @@ setup_tpm() {
         log "Installing tmux plugins (headless)..."
         if $DRY_RUN; then
             echo "[dry-run] $tpm_dir/bin/install_plugins"
-        elif ! "$tpm_dir/bin/install_plugins" >/dev/null 2>&1; then
-            warn "tpm plugin install failed (offline?) — press prefix+I inside tmux later"
+        else
+            local out rc=0
+            out="$("$tpm_dir/bin/install_plugins" 2>&1)" || rc=$?
+            if [ "$rc" -eq 0 ]; then
+                log "tmux plugins OK"
+            else
+                warn "tpm plugin install failed (output below) — press prefix+I inside tmux later"
+                printf '%s\n' "$out" | sed 's/^/    /'
+            fi
         fi
     fi
 }
