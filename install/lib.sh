@@ -109,7 +109,7 @@ sync_private_repo() {
         run git clone git@github.com:KonstantinPakulev/dotfiles-private "$PRIVATE_DIR" || return 1
     else
         log "Updating private layer..."
-        git -C "$PRIVATE_DIR" pull --ff-only \
+        run git -C "$PRIVATE_DIR" pull --ff-only \
             || warn "private layer pull failed (diverged?); using last synced state"
     fi
     _PRIVATE_LAYER_SYNCED=true
