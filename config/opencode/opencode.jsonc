@@ -101,7 +101,8 @@
       "ps *": "allow",
       "uname": "allow",
       "uname *": "allow",
-      "pip show *": "allow"
+      "pip show *": "allow",
+      "jupyter nbconvert *": "allow"
     }
   },
   "compaction": {
