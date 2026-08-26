@@ -77,6 +77,9 @@
       "find *": "allow",
       "pwd": "allow",
       "whoami": "allow",
+      "whoami *": "allow",
+      "hostname": "allow",
+      "hostname *": "allow",
       "date": "allow",
       "which *": "allow",
       "command *": "allow",
@@ -96,6 +99,7 @@
       "sha256sum *": "allow",
       "md5 *": "allow",
       "ps *": "allow",
+      "uname": "allow",
       "uname *": "allow"
     }
   },
