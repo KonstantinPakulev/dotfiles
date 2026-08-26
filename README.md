@@ -59,13 +59,14 @@ What it does, in order:
 
 `config/opencode/opencode.jsonc` in this repo holds only generic settings
 (permissions, compaction, LSP) because this repo is public. Provider configs
-(model backends) live in the **private companion repo**
+(model backends) and machine-specific settings (allowed external directories)
+live in the **private companion repo**
 [`KonstantinPakulev/dotfiles-private`](https://github.com/KonstantinPakulev/dotfiles-private):
 
 ```
 dotfiles-private/
 ├── opencode/
-│   └── provider.jsonc    # {"provider": { "<name>": {...} }}
+│   └── opencode.jsonc    # private counterpart: providers, permissions
 └── ssh/
     └── config.d/
         └── fleet.conf    # lab hosts: IPs, usernames, jump hosts
