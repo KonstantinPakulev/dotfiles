@@ -100,7 +100,8 @@
       "md5 *": "allow",
       "ps *": "allow",
       "uname": "allow",
-      "uname *": "allow"
+      "uname *": "allow",
+      "pip show *": "allow"
     }
   },
   "compaction": {
