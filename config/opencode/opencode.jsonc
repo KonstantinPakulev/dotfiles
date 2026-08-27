@@ -44,6 +44,8 @@
       "git submodule status *": "allow",
       "git submodule summary *": "allow",
       "git check-ignore *": "allow",
+      "git ls-files": "allow",
+      "git ls-files *": "allow",
       "docker ps": "allow",
       "docker ps *": "allow",
       "docker inspect *": "allow",
