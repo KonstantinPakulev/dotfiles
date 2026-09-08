@@ -27,7 +27,7 @@ PKG=""
 # shellcheck disable=SC2034  # consumed by modules after source
 SUDO=""
 
-PRIVATE_DIR="$HOME/.dotfiles-private"
+PRIVATE_DIR="$HOME/dotfiles-private"
 _PRIVATE_LAYER_SYNCED=false
 
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }

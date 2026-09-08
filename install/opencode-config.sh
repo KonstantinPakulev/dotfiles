@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install/opencode-config.sh — deploy ~/.config/opencode/opencode.jsonc.
 #
-# With the private layer (~/.dotfiles-private, repo dotfiles-private):
+# With the private layer (~/dotfiles-private, repo dotfiles-private):
 #   deep-merges public + private configs into a GENERATED real file.
 # Without it:
 #   falls back to symlinking the public config and prints a hint.

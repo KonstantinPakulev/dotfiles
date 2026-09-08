@@ -77,7 +77,7 @@ setup_tpm() {
 }
 
 setup_ssh() {
-    local frag_src="$HOME/.dotfiles-private/ssh/config.d"
+    local frag_src="$HOME/dotfiles-private/ssh/config.d"
     local frag_dst="$HOME/.ssh/config.d"
     mkdir -p "$frag_dst"
 
