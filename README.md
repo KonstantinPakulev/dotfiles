@@ -13,9 +13,11 @@ tmux/nvim configs — all idempotent, safe to re-run any time.
 | `tmux.conf`                        | `~/.tmux.conf` (symlink)               |
 | `config/nvim/`                     | `~/.config/nvim` (symlink)             |
 | `config/opencode/opencode.jsonc`   | `~/.config/opencode/opencode.jsonc` (generated, see below) |
+| `config/claude/settings.json`      | `~/.claude/settings.json` (generated, see below) |
 
 Everything under `config/<app>/` mirrors the XDG layout: it deploys to
-`~/.config/<app>/`.
+`~/.config/<app>/`. Claude Code is the exception — it reads `~/.claude/`, not
+XDG — so `config/claude/` deploys there instead.
 
 ## Prerequisites
 
@@ -48,12 +50,13 @@ What it does, in order:
    `~/.ssh/config`, registers the key via gh on first use.
 4. **Private layer** — clones/pulls
    [`dotfiles-private`](https://github.com/KonstantinPakulev/dotfiles-private)
-   into `~/.dotfiles-private`; skipped with a warning when unavailable.
+   into `~/dotfiles-private`; skipped with a warning when unavailable.
 5. **Links** — symlinks the table above into `$HOME`, clones tpm, and wires
    the private ssh fragments. Existing files are
    never silently overwritten: you get `[b]ackup/[d]iff/[k]eep/[A]ll/[q]uit`
    per file. Backups land next to the original as `<name>.backup.<timestamp>`.
 6. **opencode config** — see below.
+7. **Claude Code config** — same mechanism, see below.
 
 ## The private layer
 
@@ -67,15 +70,59 @@ live in the **private companion repo**
 dotfiles-private/
 ├── opencode/
 │   └── opencode.jsonc    # private counterpart: providers, permissions
+├── claude/
+│   └── settings.json     # private counterpart: model, theme, plugins
 └── ssh/
     └── config.d/
         └── fleet.conf    # lab hosts: IPs, usernames, jump hosts
 ```
 
-When the installer finds that repo (it clones/pulls it to `~/.dotfiles-private`),
-the two configs are deep-merged with jq into a generated real file at
-`~/.config/opencode/opencode.jsonc` — marked "generated", do not edit.
-Without the private repo, the public config is symlinked as-is.
+When the installer finds that repo (it clones/pulls it to `~/dotfiles-private`),
+the two configs are deep-merged with jq into generated real files at
+`~/.config/opencode/opencode.jsonc` and `~/.claude/settings.json` — marked
+"generated", do not edit. Without the private repo, the public configs are
+symlinked as-is.
+
+The Claude merge differs from the opencode one in two ways, both forced by
+Claude Code:
+
+- `settings.json` is **strict JSON**, so the "generated" marker is a top-level
+  `"//"` key rather than a `//` comment line. A malformed settings file silently
+  disables every setting in it, so the script validates before installing.
+- its interesting keys are **arrays** (`permissions.allow`/`deny`/`ask`). jq's
+  `*` replaces arrays rather than unioning them, so the filter concatenates them
+  explicitly — otherwise the private layer's short list would wipe the public one.
+
+**The proxy is not stored in either repo.** `http://127.0.0.1:8888` is only
+correct on the machine running that proxy, and the private repo is shared across
+machines too. Instead `install/claude-config.sh` injects `env.HTTP_PROXY` (and
+the three case/scheme variants) from `--proxy=<url>` at generation time — the
+same flag every other stage takes. The generated file lives outside any repo, so
+it can hold a value the repos must not:
+
+```bash
+./install/claude-config.sh --proxy=http://127.0.0.1:8888   # this machine
+./install/claude-config.sh                                 # no proxy, no env block
+```
+
+One caveat where a dev container bind-mounts `~/.claude` (as the Summertime
+`develop` service does): the host and the container then share **one**
+`settings.json`, so they also share one proxy value — it is not per-environment.
+That is fine only while the same URL is valid on both sides. In Summertime it is:
+the vpn service publishes `8888` to the host, and `develop` shares the vpn network
+namespace, so `127.0.0.1:8888` reaches the same tinyproxy either way. If the two
+ever need different addresses, this scheme cannot express it and the proxy has to
+move to something evaluated per-environment (a shell export, say).
+
+Note also that these `env` vars reach Claude Code's process tree only — not
+code-server, not your interactive shells, not anything else in the container or
+on the host. Requests from Claude Code (including a host-run one, since it reads
+the same bind-mounted file) go through the proxy; everything else does not.
+
+Note that Claude Code writes to `~/.claude/settings.json` itself (`/config`
+toggles such as theme and model, and user-scope "don't ask again"). Those writes
+are overwritten the next time the script runs — promote anything worth keeping
+into `config/claude/settings.json` or the private layer first.
 
 SSH fragments work differently — no merging, pure registration: the
 installer symlinks `ssh/config.d/*.conf` into `~/.ssh/config.d/` and
@@ -92,7 +139,8 @@ never be accidentally committed.
 git -C ~/dotfiles pull
 ./install.sh                    # idempotent; re-syncs the private layer itself
 # or granular:
-./install/opencode-config.sh    # regenerate merged config
+./install/opencode-config.sh    # regenerate merged opencode config
+./install/claude-config.sh      # regenerate merged Claude Code config
 ./install/link.sh               # pick up newly added mappings
 ./install/tools.sh              # only when you want tool upgrades
 ```
@@ -171,7 +219,7 @@ rm ~/.bashrc ~/.bash_profile ~/.tmux.conf ~/.config/nvim \
    ~/.config/opencode/opencode.jsonc     # all symlinks / generated file
 ls ~ ~/.config | grep backup             # review .backup.<timestamp> files,
                                          # restore any you want back
-rm -rf ~/.dotfiles-private               # private layer clone
+rm -rf ~/dotfiles-private               # private layer clone
 gh auth logout --hostname github.com     # drop the gh token
 ```
 

@@ -143,6 +143,13 @@ source "$INSTALL_DIR/opencode-config.sh"
 opencode_config_main
 
 # ---------------------------------------------------------------------------
+# Stage 7: deploy Claude Code config (merge private layer when present)
+# ---------------------------------------------------------------------------
+# shellcheck source=install/claude-config.sh
+source "$INSTALL_DIR/claude-config.sh"
+claude_config_main
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 cat <<EOF
