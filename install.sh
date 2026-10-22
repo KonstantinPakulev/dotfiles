@@ -66,23 +66,50 @@ else
 fi
 
 # Pin GitHub's published host keys BEFORE first contact (no trust-on-first-use).
+# api.github.com/meta publishes SHA256 fingerprints (not raw keys) for
+# github.com; we scan the host once and keep only keys whose fingerprint the
+# API vouches for, so a network MITM cannot slip a key past the pin.
 KH="$HOME/.ssh/known_hosts"
 touch "$KH"
 pin_host_keys() {
-    local fetched
-    fetched="$(curl "${CURL_ARGS[@]+${CURL_ARGS[@]}}" -fsSL https://api.github.com/meta 2>/dev/null \
-        | sed -n 's/.*"\(ssh-[a-z0-9]*\|ecdsa-sha2-[a-z0-9-]*\)": *"\([A-Za-z0-9+/=]\{50,\}\)".*/\1 \2/p') || true"
-    if [ -z "$fetched" ]; then
-        # Fallback constants — verify against docs.github.com SSH fingerprints
-        fetched="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
-ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg="
+    local meta fp_ed fp_ec fp_rs host key alg got want added=0
+    meta="$(curl "${CURL_ARGS[@]+${CURL_ARGS[@]}}" -fsSL -H 'User-Agent: curl' \
+        https://api.github.com/meta 2>/dev/null)" || true
+    fp_ed="$(printf '%s' "$meta" | sed -n 's/.*"SHA256_ED25519":"\([^"]*\)".*/\1/p')"
+    fp_ec="$(printf '%s' "$meta" | sed -n 's/.*"SHA256_ECDSA":"\([^"]*\)".*/\1/p')"
+    fp_rs="$(printf '%s' "$meta" | sed -n 's/.*"SHA256_RSA":"\([^"]*\)".*/\1/p')"
+
+    # Drop any stale/garbage github.com lines so the pin is always authoritative.
+    if [ -f "$KH" ]; then
+        grep -vE '^github\.com([[:space:]]|$)' "$KH" > "$KH.tmp" 2>/dev/null || true
+        mv "$KH.tmp" "$KH"
     fi
-    while read -r alg key; do
-        local line="github.com $alg $key"
-        grep -qxF "$line" "$KH" || echo "$line" >> "$KH"
-    done <<EOF
-$fetched
-EOF
+
+    if [ -z "$fp_ed$fp_ec$fp_rs" ]; then
+        warn "could not fetch GitHub fingerprints from api.github.com/meta; pinning published fallback keys"
+        fp_ed="+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU="
+        fp_ec="p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM="
+        fp_rs="uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s="
+    fi
+
+    while read -r host alg key; do
+        [ -n "$key" ] || continue
+        case "$alg" in
+            ssh-ed25519)          want="$fp_ed" ;;
+            ecdsa-sha2-nistp256)  want="$fp_ec" ;;
+            ssh-rsa)              want="$fp_rs" ;;
+            *) continue ;;
+        esac
+        got="$(printf '%s' "$key" | base64 -d 2>/dev/null | openssl dgst -sha256 -binary | openssl base64 | tr -d '=')"
+        want="${want%=}"
+        if [ "$got" = "$want" ]; then
+            echo "$host $alg $key" >> "$KH"
+            added=$((added + 1))
+        else
+            warn "github.com $alg fingerprint mismatch (expected $want, got $got) — not pinned"
+        fi
+    done < <(ssh-keyscan -t ed25519,ecdsa,rsa github.com 2>/dev/null)
+    [ "$added" -gt 0 ] || die "no github.com host keys verified — refusing to continue"
 }
 log "Pinning github.com host keys..."
 if $DRY_RUN; then echo "[dry-run] would update $KH"; else pin_host_keys; fi
