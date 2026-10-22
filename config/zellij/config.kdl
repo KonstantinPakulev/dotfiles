@@ -2,7 +2,7 @@
 // zellij configuration — managed by the dotfiles repo (symlinked to
 // ~/.config/zellij). Based on `zellij setup --dump-config` for zellij
 // 0.45.1 with local customizations applied: catppuccin themes, mouse mode,
-// pbcopy clipboard, 10000-line scrollback.
+// OSC 52 clipboard, 10000-line scrollback.
 //
 // Zellij regenerates this file when it cannot parse it, which happens on
 // major version bumps — it would write through the symlink into the repo.
@@ -422,8 +422,16 @@ scroll_buffer_size 10000
 // copy_command "xclip -selection clipboard" // x11
 // copy_command "wl-copy"                    // wayland
 // copy_command "pbcopy"                     // osx
-// 
-copy_command "pbcopy"
+//
+// Leave unset. The default OSC 52 path is what makes the clipboard reach the
+// *local* machine's system clipboard over SSH: the escape sequence travels
+// through the SSH connection to the terminal emulator, which owns the
+// clipboard. A copy_command instead pipes into a program on the remote host,
+// where the clipboard nobody is looking at. This matches the OSC 52 setup
+// already used for tmux (@override_copy_command 'osc52') and nvim
+// (vim.ui.clipboard.osc52) in this dotfiles repo.
+//
+// copy_command "pbcopy"
  
 // Choose the destination for copied text
 // Allows using the primary selection buffer (on x11/wayland) instead of the system clipboard.
