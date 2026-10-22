@@ -311,7 +311,6 @@
     ],
     "deny": [
       "Read(**/.env)",
-      "Read(**/.env.*)",
       "Read(~/.ssh/id_*)",
       "Bash(rm -rf /*)",
       "Bash(sed -i*)",
