@@ -17,6 +17,7 @@ MAPPINGS=(
     "bash_profile|$HOME/.bash_profile"
     "tmux.conf|$HOME/.tmux.conf"
     "config/nvim|$HOME/.config/nvim"
+    "config/zellij|$HOME/.config/zellij"
 )
 
 link_mapping() {

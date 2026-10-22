@@ -2,7 +2,7 @@
 
 Personal machine bootstrap and config management. One command sets up a new
 machine: developer tools, GitHub authentication (gh CLI + SSH), opencode,
-tmux/nvim configs — all idempotent, safe to re-run any time.
+tmux/nvim/zellij configs — all idempotent, safe to re-run any time.
 
 ## Managed files
 
@@ -12,6 +12,7 @@ tmux/nvim configs — all idempotent, safe to re-run any time.
 | `bash_profile`                     | `~/.bash_profile` (symlink)            |
 | `tmux.conf`                        | `~/.tmux.conf` (symlink)               |
 | `config/nvim/`                     | `~/.config/nvim` (symlink)             |
+| `config/zellij/`                   | `~/.config/zellij` (symlink)           |
 | `config/opencode/opencode.jsonc`   | `~/.config/opencode/opencode.jsonc` (generated, see below) |
 | `config/claude/settings.json`      | `~/.claude/settings.json` (generated, see below) |
 
@@ -40,7 +41,8 @@ What it does, in order:
 
 1. **Tools** — installs gh, tmux (≥ 3.3 checked; pinned to 3.5a on macOS,
    see FAQ), nvim, jq, yazi (+ `ya`),
-   lazydocker (skipped when Docker is absent), JetBrainsMono Nerd Font,
+   lazydocker (skipped when Docker is absent), zellij,
+   JetBrainsMono Nerd Font,
    opencode via brew (macOS) or apt/official tarballs (Linux). See
    `install/tools.sh`.
 2. **GitHub auth** — if unauthenticated, prints a single-shot
@@ -216,7 +218,7 @@ deletes files without you looking at them:
 
 ```bash
 rm ~/.bashrc ~/.bash_profile ~/.tmux.conf ~/.config/nvim \
-   ~/.config/opencode/opencode.jsonc     # all symlinks / generated file
+   ~/.config/zellij ~/.config/opencode/opencode.jsonc  # all symlinks / generated file
 ls ~ ~/.config | grep backup             # review .backup.<timestamp> files,
                                          # restore any you want back
 rm -rf ~/dotfiles-private               # private layer clone

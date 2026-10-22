@@ -185,6 +185,7 @@ $(printf '\033[1;32mDone.\033[0m')
 Checklist:
   - opencode: $(command -v opencode || echo "$HOME/.opencode/bin added after new shell")
   - tmux:     $(command -v tmux || echo 'MISSING')
+  - zellij:   $(command -v zellij || echo 'MISSING')
   - nvim:     $(command -v nvim || echo 'MISSING')
   - gh:       $(command -v gh || echo 'MISSING')
 Start a new shell (or: source ~/.bashrc) to pick up PATH changes.

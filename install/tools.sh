@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install/tools.sh — install gh, tmux, nvim, jq, yazi, lazydocker (needs docker), fonts, opencode.
+# install/tools.sh — install gh, tmux, nvim, jq, yazi, lazydocker (needs docker), zellij, fonts, opencode.
 # Standalone: ./install/tools.sh [--proxy=<url>] [--dry-run]
 
 set -euo pipefail
@@ -271,6 +271,43 @@ install_lazydocker() {
     rm -rf "$tmp"
 }
 
+install_zellij() {
+    if command -v zellij >/dev/null 2>&1; then
+        log "zellij already installed: $(zellij --version 2>/dev/null | head -1)"
+        return
+    fi
+    # Asset names carry no version, so latest/download resolves the newest
+    # release directly — no API round trip. Linux takes the musl build: a
+    # static binary with no glibc dependency, matching the sudo-less
+    # philosophy of the other tarball installs here.
+    local asset url tmp optdir
+    case "$OS/$ARCH" in
+        Darwin/x86_64) asset="zellij-x86_64-apple-darwin.tar.gz" ;;
+        Darwin/arm64)  asset="zellij-aarch64-apple-darwin.tar.gz" ;;
+        Linux/x86_64)  asset="zellij-x86_64-unknown-linux-musl.tar.gz" ;;
+        Linux/arm64)   asset="zellij-aarch64-unknown-linux-musl.tar.gz" ;;
+        *) die "unsupported platform for zellij: $OS/$ARCH" ;;
+    esac
+    url="https://github.com/zellij-org/zellij/releases/latest/download/$asset"
+    optdir="$HOME/.local/opt/zellij"
+    log "Installing zellij from official tarball..."
+    if $DRY_RUN; then
+        echo "[dry-run] would download $url -> ~/.local/opt/zellij and symlink zellij into ~/.local/bin"
+        return
+    fi
+    tmp="$(mktemp -d)"
+    curl "${CURL_ARGS[@]+"${CURL_ARGS[@]}"}" -fsSL --output "$tmp/zellij.tar.gz" "$url" \
+        || die "failed to download $url"
+    mkdir -p "$optdir" "$HOME/.local/bin"
+    rm -rf "${optdir:?}"/*
+    # The tarball root is the bare `zellij` binary — no versioned subdir.
+    tar -C "$optdir" -xzf "$tmp/zellij.tar.gz" zellij || die "failed to extract $url"
+    chmod +x "$optdir/zellij"
+    ln -sf "$optdir/zellij" "$HOME/.local/bin/zellij"
+    rm -rf "$tmp"
+    log "zellij installed: $("$HOME/.local/bin/zellij" --version 2>/dev/null | head -1)"
+}
+
 install_fonts() {
     # JetBrainsMono Nerd Font — icons for nvim/tmux/yazi
     if [ "$PKG" = brew ]; then
@@ -330,6 +367,7 @@ tools_main() {
     install_jq
     install_yazi
     install_lazydocker
+    install_zellij
     install_fonts
     install_opencode_bin
 }

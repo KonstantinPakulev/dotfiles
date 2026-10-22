@@ -12,3 +12,8 @@ clearml.conf
 .env
 .git-credentials
 *.backup.*
+
+# zellij
+config/zellij/layouts/*
+!config/zellij/layouts/.gitkeep
+config/zellij/*.bak
