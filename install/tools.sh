@@ -7,6 +7,10 @@ set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
+# Standalone runs must see tools installed earlier in this same run (jq lands in
+# ~/.local/bin before the lazydocker stage uses it); install.sh sets this too.
+export PATH="$HOME/.local/bin:$PATH"
+
 # No usable sudo: same release-tarball pattern nvim/yazi/lazydocker follow.
 install_gh_user_local() {
     local ver asset url tmp optdir
