@@ -7,6 +7,10 @@
       "WebFetch",
       "WebSearch",
 
+      "Edit(//tmp/**)",
+      "Write(//tmp/**)",
+      "NotebookEdit(//tmp/**)",
+
       "Bash(cd)",
       "Bash(cd *)",
       "Bash(pushd)",
