@@ -13,8 +13,14 @@ tmux/nvim/zellij configs — all idempotent, safe to re-run any time.
 | `tmux.conf`                        | `~/.tmux.conf` (symlink)               |
 | `config/nvim/`                     | `~/.config/nvim` (symlink)             |
 | `config/zellij/`                   | `~/.config/zellij` (symlink)           |
+| `bin/pdf-serve`                    | `~/.local/bin/pdf-serve` (symlink)     |
 | `config/opencode/opencode.jsonc`   | `~/.config/opencode/opencode.jsonc` (generated, see below) |
 | `config/claude/settings.json`      | `~/.claude/settings.json` (generated, see below) |
+
+`pdf-serve [dir] [--port=8000] [--bind=127.0.0.1]` serves a directory over
+HTTP; a PDF opens in a pdf.js viewer that re-renders in place, keeping its
+position, when the file changes (e.g. after `latexmk`). Bind a Tailscale IP to
+read it from another device.
 
 Everything under `config/<app>/` mirrors the XDG layout: it deploys to
 `~/.config/<app>/`. Claude Code is the exception — it reads `~/.claude/`, not

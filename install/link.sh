@@ -18,6 +18,7 @@ MAPPINGS=(
     "tmux.conf|$HOME/.tmux.conf"
     "config/nvim|$HOME/.config/nvim"
     "config/zellij|$HOME/.config/zellij"
+    "bin/pdf-serve|$HOME/.local/bin/pdf-serve"
 )
 
 link_mapping() {

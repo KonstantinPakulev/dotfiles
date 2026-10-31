@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+# pdf-serve — serve a directory over HTTP; a PDF opens in a pdf.js viewer that
+# re-renders in place, keeping its page and scroll position, when the file
+# changes on disk (e.g. after latexmk). Append ?raw to a PDF's URL for the file.
+#   pdf-serve [dir] [--port=8000] [--bind=127.0.0.1]
+
+import argparse
+import functools
+import html
+import http.server
+import os
+import urllib.parse
+
+VIEWER = """<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<style>
+  html {{ overflow-y: scroll; }}
+  body {{ margin: 0; background: #525659; color: #eee; font: 14px system-ui, sans-serif; }}
+  #bar {{ position: fixed; top: 0; right: 0; z-index: 1; display: flex; gap: 8px; align-items: center;
+         padding: 6px 10px; background: rgba(0, 0, 0, 0.65); border-bottom-left-radius: 6px; }}
+  #bar button {{ font: inherit; min-width: 32px; }}
+  #pages {{ padding: 12px 8px; }}
+  .page {{ margin: 0 auto 12px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }}
+  .page canvas {{ display: block; width: 100%; height: 100%; }}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+<div id="bar"><button id="zoom_out">&minus;</button><span id="zoom"></span><button id="zoom_in">+</button><span id="status"></span></div>
+<div id="pages"></div>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const MAX_CANVAS_PIXELS = 16e6;
+const POLL_MS = 1000;
+const pdfUrl = location.pathname + '?raw';
+const pagesEl = document.getElementById('pages');
+const statusEl = document.getElementById('status');
+const zoomEl = document.getElementById('zoom');
+
+let doc = null;
+let docVersion = 0;
+let shownStamp = null;
+let pendingStamp = null;
+let zoom = 1;
+const pages = [];
+
+const observer = new IntersectionObserver(entries => {{
+  for (const entry of entries) {{
+    const page = pages.find(p => p.el === entry.target);
+    if (!page) continue;
+    page.visible = entry.isIntersecting;
+    if (page.visible) {{
+      render(page);
+    }} else {{
+      page.el.replaceChildren();
+      page.renderKey = null;
+    }}
+  }}
+}}, {{ rootMargin: '100% 0px' }});
+
+function pageWidth() {{
+  return Math.min(document.documentElement.clientWidth - 16, 900) * zoom;
+}}
+
+function resizePages() {{
+  const width = pageWidth();
+  for (const page of pages) {{
+    const viewport = page.proxy.getViewport({{ scale: 1 }});
+    page.el.style.width = width + 'px';
+    page.el.style.height = width * viewport.height / viewport.width + 'px';
+  }}
+  zoomEl.textContent = Math.round(zoom * 100) + '%';
+}}
+
+function readAnchor() {{
+  for (const [pageIdx, page] of pages.entries()) {{
+    const rect = page.el.getBoundingClientRect();
+    if (rect.bottom > 0) return {{ pageIdx, fraction: -rect.top / rect.height, left: scrollX / document.body.scrollWidth }};
+  }}
+  return null;
+}}
+
+function restoreAnchor(anchor) {{
+  if (!anchor || !pages[anchor.pageIdx]) return;
+  const el = pages[anchor.pageIdx].el;
+  scrollTo(anchor.left * document.body.scrollWidth, el.offsetTop + anchor.fraction * el.offsetHeight);
+}}
+
+function relayout() {{
+  const anchor = readAnchor();
+  resizePages();
+  restoreAnchor(anchor);
+  pages.filter(p => p.visible).forEach(render);
+}}
+
+async function render(page) {{
+  if (page.busy) {{
+    page.again = true;
+    return;
+  }}
+  page.busy = true;
+  try {{
+    do {{
+      page.again = false;
+      if (!page.visible) break;
+      const renderKey = docVersion + ':' + page.el.clientWidth + ':' + devicePixelRatio;
+      if (page.renderKey === renderKey && page.el.firstChild) break;
+      const proxy = page.proxy;
+      const base = proxy.getViewport({{ scale: 1 }});
+      const scale = Math.min(page.el.clientWidth / base.width * devicePixelRatio,
+                             Math.sqrt(MAX_CANVAS_PIXELS / (base.width * base.height)));
+      const viewport = proxy.getViewport({{ scale }});
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await proxy.render({{ canvasContext: canvas.getContext('2d'), viewport }}).promise;
+      if (page.visible && page.proxy === proxy) {{
+        page.el.replaceChildren(canvas);
+        page.renderKey = renderKey;
+      }}
+    }} while (page.again);
+  }} catch (error) {{
+    console.warn(error);
+  }} finally {{
+    page.busy = false;
+  }}
+}}
+
+async function load(stamp) {{
+  statusEl.textContent = 'loading…';
+  let newDoc;
+  let proxies;
+  try {{
+    newDoc = await pdfjsLib.getDocument({{ url: pdfUrl + '&t=' + Date.now(), disableRange: true, disableStream: true }}).promise;
+    proxies = await Promise.all(Array.from({{ length: newDoc.numPages }}, (_, i) => newDoc.getPage(i + 1)));
+  }} catch (error) {{
+    statusEl.textContent = 'unreadable, retrying';
+    return;
+  }}
+  const anchor = readAnchor();
+  const oldDoc = doc;
+  doc = newDoc;
+  docVersion += 1;
+  shownStamp = stamp;
+  while (pages.length < proxies.length) {{
+    const el = document.createElement('div');
+    el.className = 'page';
+    pagesEl.append(el);
+    pages.push({{ el, visible: false }});
+    observer.observe(el);
+  }}
+  while (pages.length > proxies.length) {{
+    const page = pages.pop();
+    observer.unobserve(page.el);
+    page.el.remove();
+  }}
+  proxies.forEach((proxy, pageIdx) => {{ pages[pageIdx].proxy = proxy; }});
+  resizePages();
+  restoreAnchor(anchor);
+  await Promise.all(pages.filter(p => p.visible).map(render));
+  if (oldDoc) oldDoc.destroy();
+  statusEl.textContent = 'updated ' + new Date().toLocaleTimeString();
+}}
+
+async function poll() {{
+  try {{
+    const response = await fetch(pdfUrl, {{ method: 'HEAD', cache: 'no-store' }});
+    if (!response.ok) {{
+      statusEl.textContent = 'missing';
+      return;
+    }}
+    const stamp = response.headers.get('Last-Modified') + ' ' + response.headers.get('Content-Length');
+    if (shownStamp === null || (stamp !== shownStamp && stamp === pendingStamp)) await load(stamp);
+    pendingStamp = stamp;
+  }} catch (error) {{
+    statusEl.textContent = 'server unreachable';
+  }} finally {{
+    setTimeout(poll, POLL_MS);
+  }}
+}}
+
+document.getElementById('zoom_in').onclick = () => {{ zoom *= 1.25; relayout(); }};
+document.getElementById('zoom_out').onclick = () => {{ zoom /= 1.25; relayout(); }};
+let resizeTimer = null;
+addEventListener('resize', () => {{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(relayout, 150);
+}});
+poll();
+</script>
+</body>
+</html>
+"""
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+
+    def do_GET(self):
+        url = urllib.parse.urlsplit(self.path)
+        query = urllib.parse.parse_qs(url.query, keep_blank_values=True)
+        if url.path.lower().endswith('.pdf') and 'raw' not in query and os.path.isfile(self.translate_path(self.path)):
+            self.send_viewer(os.path.basename(urllib.parse.unquote(url.path)))
+        else:
+            super().do_GET()
+
+    def send_viewer(self, title):
+        body = VIEWER.format(title=html.escape(title)).encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
+    def log_request(self, code='-', size='-'):
+        if self.command != 'HEAD':
+            super().log_request(code, size)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Serve a directory; PDFs open in a viewer that reloads on change.')
+    parser.add_argument('directory', nargs='?', default='.')
+    parser.add_argument('--port', type=int, default=8000)
+    parser.add_argument('--bind', default='127.0.0.1', help='address to listen on, e.g. a Tailscale IP or 0.0.0.0')
+    args = parser.parse_args()
+
+    handler = functools.partial(Handler, directory=args.directory)
+    with http.server.ThreadingHTTPServer((args.bind, args.port), handler) as server:
+        print(f'Serving {os.path.abspath(args.directory)} at http://{args.bind}:{args.port}/', flush=True)
+        server.serve_forever()
+
+
+if __name__ == '__main__':
+    main()
