@@ -18,12 +18,17 @@ VIEWER = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
 <style>
-  html {{ overflow-y: scroll; }}
+  html, body {{ height: 100%; overflow: hidden; touch-action: pan-x pan-y; }}
   body {{ margin: 0; background: #525659; color: #eee; font: 14px system-ui, sans-serif; }}
-  #bar {{ position: fixed; top: 0; right: 0; z-index: 1; display: flex; gap: 8px; align-items: center;
-         padding: 6px 10px; background: rgba(0, 0, 0, 0.65); border-bottom-left-radius: 6px; }}
-  #bar button {{ font: inherit; min-width: 32px; }}
-  #pages {{ padding: 12px 8px; }}
+  #hud {{ position: fixed; top: 0; left: 0; z-index: 1; font-size: 14px;
+         display: flex; flex-direction: column; align-items: flex-end; }}
+  #bar {{ display: flex; gap: 0.57em; align-items: center;
+         padding: 0.43em 0.71em; background: rgba(0, 0, 0, 0.65); border-bottom-left-radius: 0.43em; }}
+  #bar button {{ font: inherit; min-width: 2.3em; padding: 0.07em 0.43em; border-width: 0.14em; border-radius: 0.3em; }}
+  /* The pages scroll in a box of their own the size of the screen: a document wider than the screen would widen
+     a mobile browser's layout viewport, which then zooms out to fit it, instead of scrolling. */
+  #scroller {{ position: fixed; inset: 0; overflow: auto; -webkit-overflow-scrolling: touch; }}
+  #pages {{ width: max-content; min-width: 100%; box-sizing: border-box; padding: 12px 8px; }}
   .page {{ position: relative; margin: 0 auto 12px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }}
   .page canvas {{ display: block; width: 100%; height: 100%; }}
   .page canvas.detail {{ position: absolute; }}
@@ -31,8 +36,8 @@ VIEWER = """<!doctype html>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
-<div id="bar"><button id="zoom_out">&minus;</button><span id="zoom"></span><button id="zoom_in">+</button><span id="status"></span></div>
-<div id="pages"></div>
+<div id="hud"><div id="bar"><button id="zoom_out">&minus;</button><span id="zoom"></span><button id="zoom_in">+</button><span id="status"></span></div></div>
+<div id="scroller"><div id="pages"></div></div>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -44,9 +49,37 @@ const BASE_CANVAS_PIXELS = 5e6;
 const SETTLE_MS = 150;
 const POLL_MS = 1000;
 const pdfUrl = location.pathname + '?raw';
+const scrollerEl = document.getElementById('scroller');
 const pagesEl = document.getElementById('pages');
 const statusEl = document.getElementById('status');
 const zoomEl = document.getElementById('zoom');
+// ?debug: what the pinch re-render did, under the bar — the pinch, the canvases of the page on screen, the visual
+// viewport and the page's box, and the last render error.
+const debugEl = new URLSearchParams(location.search).has('debug') ? document.createElement('div') : null;
+let lastError = '';
+if (debugEl) {{
+  debugEl.style.cssText = 'padding: 0.5em 0.83em; background: rgba(0, 0, 0, 0.75); '
+                        + 'font: 0.86em monospace; white-space: pre-wrap;';
+  document.getElementById('hud').append(debugEl);
+}}
+
+function showDebug() {{
+  if (!debugEl) return;
+  const vv = window.visualViewport;
+  const page = pages.find(p => p.visible && onScreen(p));
+  const size = canvas => canvas ? canvas.width + 'x' + canvas.height : 'none';
+  const rect = page ? page.el.getBoundingClientRect() : null;
+  debugEl.textContent = [
+    'pinch ' + pinchScale().toFixed(2) + ' dpr ' + devicePixelRatio,
+    'vv ' + (vv ? [vv.offsetLeft, vv.offsetTop, vv.width, vv.height].map(v => v.toFixed(0)).join(',') : 'none')
+      + ' scroll ' + scrollerEl.scrollLeft.toFixed(0) + ',' + scrollerEl.scrollTop.toFixed(0),
+    page ? 'page ' + pages.indexOf(page) + ' box ' + [rect.left, rect.top, rect.width].map(v => v.toFixed(0)).join(',')
+           + ' base ' + size(page.baseCanvas) + ' detail ' + size(page.detailCanvas)
+           + (page.detailCanvas ? ' at ' + page.detailCanvas.style.left + ',' + page.detailCanvas.style.top : '')
+         : 'no page on screen',
+    lastError,
+  ].join('\\n');
+}}
 
 let doc = null;
 let docVersion = 0;
@@ -69,10 +102,10 @@ const observer = new IntersectionObserver(entries => {{
       page.baseKey = page.detailKey = null;
     }}
   }}
-}}, {{ rootMargin: '100% 0px' }});
+}}, {{ root: scrollerEl, rootMargin: '100% 0px' }});
 
 function pageWidth() {{
-  return Math.min(document.documentElement.clientWidth - 16, 900) * zoom;
+  return Math.min(scrollerEl.clientWidth - 16, 900) * zoom;
 }}
 
 function resizePages() {{
@@ -88,7 +121,7 @@ function resizePages() {{
 function readAnchor() {{
   for (const [pageIdx, page] of pages.entries()) {{
     const rect = page.el.getBoundingClientRect();
-    if (rect.bottom > 0) return {{ pageIdx, fraction: -rect.top / rect.height, left: scrollX / document.body.scrollWidth }};
+    if (rect.bottom > 0) return {{ pageIdx, fraction: -rect.top / rect.height, left: scrollerEl.scrollLeft / scrollerEl.scrollWidth }};
   }}
   return null;
 }}
@@ -96,7 +129,7 @@ function readAnchor() {{
 function restoreAnchor(anchor) {{
   if (!anchor || !pages[anchor.pageIdx]) return;
   const el = pages[anchor.pageIdx].el;
-  scrollTo(anchor.left * document.body.scrollWidth, el.offsetTop + anchor.fraction * el.offsetHeight);
+  scrollerEl.scrollTo(anchor.left * scrollerEl.scrollWidth, el.offsetTop + anchor.fraction * el.offsetHeight);
 }}
 
 function relayout() {{
@@ -194,8 +227,10 @@ async function render(page) {{
     }} while (page.again);
   }} catch (error) {{
     console.warn(error);
+    lastError = 'error: ' + error;
   }} finally {{
     page.busy = false;
+    showDebug();
   }}
 }}
 
@@ -252,8 +287,78 @@ async function poll() {{
   }}
 }}
 
-document.getElementById('zoom_in').onclick = () => {{ zoom *= 1.25; relayout(); }};
-document.getElementById('zoom_out').onclick = () => {{ zoom /= 1.25; relayout(); }};
+document.getElementById('zoom_in').onclick = () => {{ zoom = clampZoom(zoom * 1.25); relayout(); }};
+document.getElementById('zoom_out').onclick = () => {{ zoom = clampZoom(zoom / 1.25); relayout(); }};
+
+// A two-finger pinch is the viewer's zoom, not the browser's: the browser's magnifies the canvases as bitmaps, which
+// iOS shows jagged, while the viewer's lays the pages out at the new width and renders them again, as the buttons do.
+// While the fingers move the pages follow them as a scaled preview; when they lift, the point that was under them
+// at the start is laid out under where they are now. The browser's pinch is held off by touch-action and, for iOS,
+// which ignores user-scalable=no, by refusing its gesture events.
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 8;
+let pinch = null;
+
+function clampZoom(value) {{
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}}
+
+function fingers(touches) {{
+  const [a, b] = touches;
+  return {{ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2,
+            distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) }};
+}}
+
+// The pinch's ratio, held to what keeps the zoom within its bounds.
+function pinchRatio() {{
+  return clampZoom(zoom * pinch.now.distance / pinch.start.distance) / zoom;
+}}
+
+// Where a point of the screen is on the pages: the page nearest it vertically, and the point as fractions of its box.
+function pageAnchor(x, y) {{
+  let best = null;
+  for (const [pageIdx, page] of pages.entries()) {{
+    const rect = page.el.getBoundingClientRect();
+    const gap = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+    if (best === null || gap < best.gap) {{
+      best = {{ gap, pageIdx, fx: (x - rect.left) / rect.width, fy: (y - rect.top) / rect.height }};
+    }}
+  }}
+  return best;
+}}
+
+addEventListener('touchstart', event => {{
+  if (event.touches.length !== 2 || pages.length === 0) return;
+  const start = fingers(event.touches);
+  const rect = pagesEl.getBoundingClientRect();
+  pinch = {{ start, now: start, anchor: pageAnchor(start.x, start.y) }};
+  pagesEl.style.transformOrigin = (start.x - rect.left) + 'px ' + (start.y - rect.top) + 'px';
+}}, {{ passive: true }});
+
+addEventListener('touchmove', event => {{
+  if (pinch === null || event.touches.length !== 2) return;
+  event.preventDefault();
+  pinch.now = fingers(event.touches);
+  pagesEl.style.transform = 'translate(' + (pinch.now.x - pinch.start.x) + 'px, ' + (pinch.now.y - pinch.start.y) + 'px) '
+                          + 'scale(' + pinchRatio() + ')';
+}}, {{ passive: false }});
+
+function endPinch(event) {{
+  if (pinch === null || event.touches.length >= 2) return;
+  const {{ now, anchor }} = pinch;
+  zoom = clampZoom(zoom * pinchRatio());
+  pinch = null;
+  pagesEl.style.transform = '';
+  resizePages();
+  const el = pages[anchor.pageIdx].el;
+  scrollerEl.scrollTo(el.offsetLeft + anchor.fx * el.offsetWidth - now.x, el.offsetTop + anchor.fy * el.offsetHeight - now.y);
+  pages.filter(p => p.visible).forEach(render);
+}}
+addEventListener('touchend', endPinch);
+addEventListener('touchcancel', endPinch);
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {{
+  addEventListener(type, event => event.preventDefault());
+}}
 let resizeTimer = null;
 addEventListener('resize', () => {{
   clearTimeout(resizeTimer);
@@ -262,13 +367,29 @@ addEventListener('resize', () => {{
 let pinchTimer = null;
 const rerenderVisible = () => {{
   clearTimeout(pinchTimer);
-  pinchTimer = setTimeout(() => pages.filter(p => p.visible).forEach(render), SETTLE_MS);
+  pinchTimer = setTimeout(() => {{
+    pages.filter(p => p.visible).forEach(render);
+    showDebug();
+  }}, SETTLE_MS);
 }};
-if (window.visualViewport) {{
-  visualViewport.addEventListener('resize', rerenderVisible);
-  visualViewport.addEventListener('scroll', rerenderVisible);
+// The bar in the screen's top right corner at its own size whatever the zoom: a fixed box sits in the layout viewport,
+// which a pinch magnifies and the visual viewport moves within, so it is moved to the visual viewport's corner and its
+// font, which every size in it follows, divided by the pinch — laid out again, not a scaled bitmap, so it stays sharp.
+const hudEl = document.getElementById('hud');
+function placeHud() {{
+  const vv = window.visualViewport;
+  if (!vv) return;
+  hudEl.style.fontSize = 14 / vv.scale + 'px';
+  hudEl.style.transform = 'translate(' + (vv.offsetLeft + vv.width) + 'px, ' + vv.offsetTop + 'px) translateX(-100%)';
 }}
-addEventListener('scroll', rerenderVisible);
+if (window.visualViewport) {{
+  for (const event of ['resize', 'scroll']) {{
+    visualViewport.addEventListener(event, rerenderVisible);
+    visualViewport.addEventListener(event, placeHud);
+  }}
+}}
+scrollerEl.addEventListener('scroll', rerenderVisible);
+placeHud();
 poll();
 </script>
 </body>
