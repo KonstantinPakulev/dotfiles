@@ -24,8 +24,9 @@ VIEWER = """<!doctype html>
          padding: 6px 10px; background: rgba(0, 0, 0, 0.65); border-bottom-left-radius: 6px; }}
   #bar button {{ font: inherit; min-width: 32px; }}
   #pages {{ padding: 12px 8px; }}
-  .page {{ margin: 0 auto 12px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }}
+  .page {{ position: relative; margin: 0 auto 12px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }}
   .page canvas {{ display: block; width: 100%; height: 100%; }}
+  .page canvas.detail {{ position: absolute; }}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
@@ -35,7 +36,12 @@ VIEWER = """<!doctype html>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-const MAX_CANVAS_PIXELS = 16e6;
+// A pinch zooms the visual viewport, which magnifies the canvases as bitmaps: a page is re-rendered at the pinch's
+// scale once it settles. A whole page at that scale would pass iOS's canvas budget, so each page keeps a base canvas of
+// at most BASE_CANVAS_PIXELS and, where that is coarser than the screen, a detail canvas over its part on screen at the
+// screen's resolution.
+const BASE_CANVAS_PIXELS = 5e6;
+const SETTLE_MS = 150;
 const POLL_MS = 1000;
 const pdfUrl = location.pathname + '?raw';
 const pagesEl = document.getElementById('pages');
@@ -57,8 +63,10 @@ const observer = new IntersectionObserver(entries => {{
     if (page.visible) {{
       render(page);
     }} else {{
-      page.el.replaceChildren();
-      page.renderKey = null;
+      drop(page.baseCanvas);
+      drop(page.detailCanvas);
+      page.baseCanvas = page.detailCanvas = null;
+      page.baseKey = page.detailKey = null;
     }}
   }}
 }}, {{ rootMargin: '100% 0px' }});
@@ -98,6 +106,33 @@ function relayout() {{
   pages.filter(p => p.visible).forEach(render);
 }}
 
+function pinchScale() {{
+  return window.visualViewport ? visualViewport.scale : 1;
+}}
+
+// The part of a page on screen, in the page's CSS pixels, or null: the page's box clipped to the visual viewport, which
+// a pinch shrinks and moves within the layout viewport the box is measured in.
+function onScreen(page) {{
+  const rect = page.el.getBoundingClientRect();
+  const vv = window.visualViewport;
+  const screen = vv ? {{ left: vv.offsetLeft, top: vv.offsetTop, right: vv.offsetLeft + vv.width,
+                        bottom: vv.offsetTop + vv.height }}
+                    : {{ left: 0, top: 0, right: innerWidth, bottom: innerHeight }};
+  const left = Math.max(rect.left, screen.left);
+  const top = Math.max(rect.top, screen.top);
+  const right = Math.min(rect.right, screen.right);
+  const bottom = Math.min(rect.bottom, screen.bottom);
+  if (right <= left || bottom <= top) return null;
+  return {{ x: left - rect.left, y: top - rect.top, width: right - left, height: bottom - top }};
+}}
+
+// A canvas taken off the page, its pixels released at once: iOS counts them against its budget until it is collected.
+function drop(canvas) {{
+  if (!canvas) return;
+  canvas.width = canvas.height = 0;
+  canvas.remove();
+}}
+
 async function render(page) {{
   if (page.busy) {{
     page.again = true;
@@ -108,21 +143,54 @@ async function render(page) {{
     do {{
       page.again = false;
       if (!page.visible) break;
-      const renderKey = docVersion + ':' + page.el.clientWidth + ':' + devicePixelRatio;
-      if (page.renderKey === renderKey && page.el.firstChild) break;
       const proxy = page.proxy;
       const base = proxy.getViewport({{ scale: 1 }});
-      const scale = Math.min(page.el.clientWidth / base.width * devicePixelRatio,
-                             Math.sqrt(MAX_CANVAS_PIXELS / (base.width * base.height)));
-      const viewport = proxy.getViewport({{ scale }});
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      await proxy.render({{ canvasContext: canvas.getContext('2d'), viewport }}).promise;
-      if (page.visible && page.proxy === proxy) {{
-        page.el.replaceChildren(canvas);
-        page.renderKey = renderKey;
+      // PDF units to device pixels at the layout's width and the pinch.
+      const deviceScale = devicePixelRatio * pinchScale();
+      const fineScale = page.el.clientWidth / base.width * deviceScale;
+      const baseScale = Math.min(fineScale, Math.sqrt(BASE_CANVAS_PIXELS / (base.width * base.height)));
+
+      const baseKey = docVersion + ':' + page.el.clientWidth + ':' + baseScale;
+      if (page.baseKey !== baseKey || !page.baseCanvas) {{
+        const viewport = proxy.getViewport({{ scale: baseScale }});
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        await proxy.render({{ canvasContext: canvas.getContext('2d'), viewport }}).promise;
+        if (!page.visible || page.proxy !== proxy) {{
+          drop(canvas);
+          continue;
+        }}
+        drop(page.baseCanvas);
+        page.el.prepend(canvas);
+        page.baseCanvas = canvas;
+        page.baseKey = baseKey;
       }}
+
+      const part = fineScale > baseScale * 1.05 ? onScreen(page) : null;
+      if (part === null) {{
+        drop(page.detailCanvas);
+        page.detailCanvas = page.detailKey = null;
+        continue;
+      }}
+      const detailKey = baseKey + ':' + fineScale + ':' + [part.x, part.y, part.width, part.height].map(Math.round);
+      if (page.detailKey === detailKey) continue;
+      const canvas = document.createElement('canvas');
+      canvas.className = 'detail';
+      canvas.width = Math.ceil(part.width * deviceScale);
+      canvas.height = Math.ceil(part.height * deviceScale);
+      Object.assign(canvas.style, {{ left: part.x + 'px', top: part.y + 'px',
+                                     width: part.width + 'px', height: part.height + 'px' }});
+      await proxy.render({{ canvasContext: canvas.getContext('2d'), viewport: proxy.getViewport({{ scale: fineScale }}),
+                           transform: [1, 0, 0, 1, -part.x * deviceScale, -part.y * deviceScale] }}).promise;
+      if (!page.visible || page.proxy !== proxy) {{
+        drop(canvas);
+        continue;
+      }}
+      drop(page.detailCanvas);
+      page.el.append(canvas);
+      page.detailCanvas = canvas;
+      page.detailKey = detailKey;
     }} while (page.again);
   }} catch (error) {{
     console.warn(error);
@@ -191,6 +259,16 @@ addEventListener('resize', () => {{
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(relayout, 150);
 }});
+let pinchTimer = null;
+const rerenderVisible = () => {{
+  clearTimeout(pinchTimer);
+  pinchTimer = setTimeout(() => pages.filter(p => p.visible).forEach(render), SETTLE_MS);
+}};
+if (window.visualViewport) {{
+  visualViewport.addEventListener('resize', rerenderVisible);
+  visualViewport.addEventListener('scroll', rerenderVisible);
+}}
+addEventListener('scroll', rerenderVisible);
 poll();
 </script>
 </body>
