@@ -14,6 +14,7 @@ tmux/nvim/zellij configs — all idempotent, safe to re-run any time.
 | `config/nvim/`                     | `~/.config/nvim` (symlink)             |
 | `config/zellij/`                   | `~/.config/zellij` (symlink)           |
 | `bin/pdf-serve`                    | `~/.local/bin/pdf-serve` (symlink)     |
+| `config/yazi/`                     | `~/.config/yazi` (symlink; plugin contents ignored) |
 | `config/opencode/opencode.jsonc`   | `~/.config/opencode/opencode.jsonc` (generated, see below) |
 | `config/claude/settings.json`      | `~/.claude/settings.json` (generated, see below) |
 
@@ -46,11 +47,12 @@ cd ~/dotfiles
 What it does, in order:
 
 1. **Tools** — installs gh, tmux (≥ 3.3 checked; pinned to 3.5a on macOS,
-   see FAQ), nvim, jq, yazi (+ `ya`),
+   see FAQ), nvim, jq, yazi (+ `ya`), sshfs,
    lazydocker (skipped when Docker is absent), zellij,
    JetBrainsMono Nerd Font,
-   opencode via brew (macOS) or apt/official tarballs (Linux). See
-   `install/tools.sh`.
+   opencode via brew (macOS) or apt/official tarballs (Linux). macOS SSHFS
+   requires a prior macFUSE + SSHFS installation; the installer only warns
+   when it is missing. See `install/tools.sh`.
 2. **GitHub auth** — if unauthenticated, prints a single-shot
    `gh auth login` command to run, then re-run the installer.
 3. **SSH** — generates an ed25519 key if missing, pins GitHub's published
@@ -63,8 +65,10 @@ What it does, in order:
    the private ssh fragments. Existing files are
    never silently overwritten: you get `[b]ackup/[d]iff/[k]eep/[A]ll/[q]uit`
    per file. Backups land next to the original as `<name>.backup.<timestamp>`.
-6. **opencode config** — see below.
-7. **Claude Code config** — same mechanism, see below.
+6. **Yazi packages** — installs the pinned `sshfs.yazi` plugin from
+   `config/yazi/package.toml` via `install/yazi-packages.sh`.
+7. **opencode config** — see below.
+8. **Claude Code config** — same mechanism, see below.
 
 ## The private layer
 
@@ -150,8 +154,24 @@ git -C ~/dotfiles pull
 ./install/opencode-config.sh    # regenerate merged opencode config
 ./install/claude-config.sh      # regenerate merged Claude Code config
 ./install/link.sh               # pick up newly added mappings
+./install/yazi-packages.sh      # install packages pinned in config/yazi/package.toml
 ./install/tools.sh              # only when you want tool upgrades
 ```
+
+## Yazi SSHFS
+
+Run `yazi`, then press `M s` (uppercase `M`, then `s`) to open the SSHFS
+menu. Choose `m` to mount a host and jump into it, `u` to unmount, or `t` to
+open an SSH terminal. The installer generates `~/.local/share/yazi/sshfs.list`
+from the private SSH fragments because the plugin only enumerates literal
+`Host` entries from the main `~/.ssh/config`. OpenSSH still resolves `Include`
+and `Match` rules when connecting. Mounts default to `~/mnt/<host>`; use
+Yazi's normal copy and paste operations between local and remote tabs.
+
+SSHFS must be installed separately. On macOS, use the official
+[macFUSE](https://macfuse.github.io/) and
+[SSHFS](https://github.com/macfuse/macfuse/wiki/File-Systems-%E2%80%90-SSHFS)
+releases; apt-based Linux installations are handled by `install/tools.sh`.
 
 ## Machine-specific settings
 
@@ -224,7 +244,7 @@ deletes files without you looking at them:
 
 ```bash
 rm ~/.bashrc ~/.bash_profile ~/.tmux.conf ~/.config/nvim \
-   ~/.config/zellij ~/.config/opencode/opencode.jsonc  # all symlinks / generated file
+   ~/.config/zellij ~/.config/yazi ~/.config/opencode/opencode.jsonc  # symlinks / generated file
 ls ~ ~/.config | grep backup             # review .backup.<timestamp> files,
                                          # restore any you want back
 rm -rf ~/dotfiles-private               # private layer clone

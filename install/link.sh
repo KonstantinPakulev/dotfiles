@@ -19,6 +19,7 @@ MAPPINGS=(
     "config/nvim|$HOME/.config/nvim"
     "config/zellij|$HOME/.config/zellij"
     "bin/pdf-serve|$HOME/.local/bin/pdf-serve"
+    "config/yazi|$HOME/.config/yazi"
 )
 
 link_mapping() {

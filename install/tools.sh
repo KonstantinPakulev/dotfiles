@@ -236,6 +236,18 @@ install_yazi() {
     rm -rf "$tmp"
 }
 
+install_sshfs() {
+    command -v sshfs >/dev/null 2>&1 && { log "sshfs already installed"; return; }
+    if [ "$PKG" = apt ] && have_apt_access; then
+        log "Installing sshfs (apt)..."
+        run $SUDO apt-get install -y sshfs
+    elif [ "$OS" = Darwin ]; then
+        warn "sshfs missing — install macFUSE and SSHFS from their official releases; see README.md"
+    else
+        warn "sshfs missing and no apt access — skipping; install sshfs to use sshfs.yazi"
+    fi
+}
+
 install_lazydocker() {
     if ! command -v docker >/dev/null 2>&1; then
         log "no docker found — skipping lazydocker"
@@ -366,6 +378,7 @@ tools_main() {
     install_nvim
     install_jq
     install_yazi
+    install_sshfs
     install_lazydocker
     install_zellij
     install_fonts

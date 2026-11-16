@@ -1,4 +1,6 @@
 config/nvim/lazy-lock.json
+config/yazi/flavors/
+config/yazi/plugins/
 
 # Secrets — must never be committed
 id_rsa*

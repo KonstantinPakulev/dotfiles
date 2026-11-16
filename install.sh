@@ -163,14 +163,21 @@ source "$INSTALL_DIR/link.sh"
 link_main
 
 # ---------------------------------------------------------------------------
-# Stage 6: deploy opencode config (merge private layer when present)
+# Stage 6: install Yazi packages
+# ---------------------------------------------------------------------------
+# shellcheck source=install/yazi-packages.sh
+source "$INSTALL_DIR/yazi-packages.sh"
+yazi_packages_main
+
+# ---------------------------------------------------------------------------
+# Stage 7: deploy opencode config (merge private layer when present)
 # ---------------------------------------------------------------------------
 # shellcheck source=install/opencode-config.sh
 source "$INSTALL_DIR/opencode-config.sh"
 opencode_config_main
 
 # ---------------------------------------------------------------------------
-# Stage 7: deploy Claude Code config (merge private layer when present)
+# Stage 8: deploy Claude Code config (merge private layer when present)
 # ---------------------------------------------------------------------------
 # shellcheck source=install/claude-config.sh
 source "$INSTALL_DIR/claude-config.sh"
