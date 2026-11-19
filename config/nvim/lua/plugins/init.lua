@@ -9,6 +9,16 @@ return {
     },
   },
 
+  -- NvChad loads which-key on <leader> and a few other keys, not on vimtex's <localleader>, so "\" showed no menu
+  -- until another trigger had loaded it.
+  {
+    "folke/which-key.nvim",
+    keys = function(_, keys)
+      table.insert(keys, "<localleader>")
+      return keys
+    end,
+  },
+
   {
     "stevearc/conform.nvim",
     -- event = 'BufWritePre', -- uncomment for format on save
