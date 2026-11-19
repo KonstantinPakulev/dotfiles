@@ -1,4 +1,14 @@
 return {
+  -- NvChad v2.5 names no branch for base46, whose default moved to v3.0 (vscode_light lives only there); v3.0 renamed
+  -- the indent guide groups that NvChad's indent-blankline spec still asks for (IblChar, IblScopeChar).
+  {
+    "lukas-reineke/indent-blankline.nvim",
+    opts = {
+      indent = { highlight = "IblIndent" },
+      scope = { highlight = "IblScope" },
+    },
+  },
+
   {
     "stevearc/conform.nvim",
     -- event = 'BufWritePre', -- uncomment for format on save
