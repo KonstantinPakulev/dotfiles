@@ -120,7 +120,7 @@ return {
       if vim.fn.executable("synctex-serve") == 1 then
         vim.g.vimtex_view_method = "general"
         vim.g.vimtex_view_general_viewer = "synctex-serve"
-        vim.g.vimtex_view_general_options = "forward @line @col @tex @pdf --bind=0.0.0.0"
+        vim.g.vimtex_view_general_options = "forward @line @col @tex @pdf"
       end
     end
   },
